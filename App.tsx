@@ -2,7 +2,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { TKI_QUESTIONS, STYLE_DESCRIPTIONS } from './constants';
 import { ConflictStyle, DiagnosisResult } from './types';
-import { getDeeperAnalysis, getGroupCultureAnalysis } from './geminiService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 
 // --- Sub-components ---
@@ -65,24 +64,14 @@ const QuestionView: React.FC<{
 };
 
 const ResultView: React.FC<{ result: DiagnosisResult; onReset: () => void }> = ({ result, onReset }) => {
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [loadingAi, setLoadingAi] = useState(false);
-
   const chartData = useMemo(() => {
     return Object.entries(result.scores).map(([name, value]) => ({ name, value }));
   }, [result]);
 
   const dominantInfo = STYLE_DESCRIPTIONS[result.dominantStyle];
 
-  const handleAiAnalysis = async () => {
-    setLoadingAi(true);
-    const analysis = await getDeeperAnalysis(result.scores);
-    setAiAnalysis(analysis);
-    setLoadingAi(false);
-  };
-
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white shadow-xl rounded-3xl my-8">
+    <div className="max-w-2xl mx-auto p-6 bg-white shadow-xl rounded-3xl my-8 animate-in fade-in zoom-in">
       <div className="text-center mb-10">
         <h1 className="text-3xl font-extrabold text-gray-900 mb-2">진단 결과</h1>
         <p className="text-gray-500">당신의 주요 갈등 관리 스타일은 다음과 같습니다.</p>
@@ -146,43 +135,16 @@ const ResultView: React.FC<{ result: DiagnosisResult; onReset: () => void }> = (
       </div>
 
       <div className="mt-12 border-t pt-8 text-center">
-        <p className="text-sm text-gray-500 mb-4 font-semibold text-blue-600">
+        <p className="text-sm text-gray-500 mb-6 font-semibold text-blue-600">
           📍 강사님께 본인의 유형({result.dominantStyle})을 알려주세요!
         </p>
-        {!aiAnalysis ? (
-          <button
-            onClick={handleAiAnalysis}
-            disabled={loadingAi}
-            className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50"
-          >
-            {loadingAi ? (
-              <span className="flex items-center justify-center">
-                <svg className="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                AI 분석 생성 중...
-              </span>
-            ) : "Gemini AI로 더 깊은 조언 얻기"}
-          </button>
-        ) : (
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-left">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-              <span className="text-xl mr-2">✨</span> Gemini AI 전문 분석
-            </h3>
-            <div className="prose prose-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-              {aiAnalysis}
-            </div>
-          </div>
-        )}
+        <button
+          onClick={onReset}
+          className="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl shadow-xl hover:bg-blue-700 transition-all active:scale-95 transform hover:-translate-y-1"
+        >
+          다시 진단하기
+        </button>
       </div>
-
-      <button
-        onClick={onReset}
-        className="w-full mt-8 bg-blue-600 text-white font-bold py-5 rounded-2xl shadow-xl hover:bg-blue-700 transition-all active:scale-95 transform hover:-translate-y-1"
-      >
-        다시 진단하기
-      </button>
     </div>
   );
 };
@@ -195,10 +157,9 @@ const InstructorDashboard: React.FC = () => {
     [ConflictStyle.AVOIDING]: 0,
     [ConflictStyle.ACCOMMODATING]: 0,
   });
-  const [groupAnalysis, setGroupAnalysis] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
-  const totalParticipants = (Object.values(counts) as number[]).reduce((a, b) => a + b, 0);
+  const totalParticipants = (Object.values(counts) as number[]).reduce((a, b) => (a as number) + (b as number), 0);
 
   const chartData = useMemo(() => {
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
@@ -213,16 +174,27 @@ const InstructorDashboard: React.FC = () => {
     }));
   };
 
-  const handleGroupAnalysis = async () => {
-    if (totalParticipants === 0) return alert("최소 1명 이상의 결과가 입력되어야 합니다.");
-    setLoading(true);
-    const analysis = await getGroupCultureAnalysis(counts);
-    setGroupAnalysis(analysis);
-    setLoading(false);
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-10 bg-white shadow-2xl rounded-[2rem] my-8 animate-in fade-in">
+      <div className="mb-8 bg-slate-900 text-white p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-inner">
+        <div className="flex items-center gap-3">
+          <span className="bg-blue-600 text-xs font-black px-2 py-1 rounded uppercase">Link</span>
+          <span className="text-sm font-medium opacity-70 truncate max-w-[200px] md:max-w-md">{window.location.href}</span>
+        </div>
+        <button 
+          onClick={copyLink}
+          className="bg-white text-slate-900 px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-50 transition-colors flex items-center gap-2"
+        >
+          {copySuccess ? '✅ 복사 완료' : '📋 진단 주소 복사'}
+        </button>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b pb-8 gap-4">
         <div>
           <h1 className="text-4xl font-black text-gray-900 tracking-tight">강사용 대시보드</h1>
@@ -236,7 +208,6 @@ const InstructorDashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-        {/* Input Section */}
         <div className="lg:col-span-5 space-y-4">
           <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
             <span className="p-2 bg-gray-100 rounded-lg">✍</span> 실시간 인원 집계
@@ -262,7 +233,6 @@ const InstructorDashboard: React.FC = () => {
           ))}
         </div>
 
-        {/* Visualization Section */}
         <div className="lg:col-span-7 flex flex-col items-center justify-center min-h-[400px] bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 p-6">
            {totalParticipants > 0 ? (
              <div className="w-full h-full flex flex-col items-center">
@@ -303,46 +273,11 @@ const InstructorDashboard: React.FC = () => {
            )}
         </div>
       </div>
-
-      <div className="mt-16 border-t pt-10">
-        {!groupAnalysis ? (
-          <button
-            onClick={handleGroupAnalysis}
-            disabled={loading || totalParticipants === 0}
-            className="w-full bg-gradient-to-r from-gray-900 to-slate-800 text-white font-black text-xl py-6 rounded-3xl shadow-2xl hover:shadow-blue-200 hover:-translate-y-1 transition-all disabled:opacity-20"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-3">
-                <svg className="animate-spin h-6 w-6 text-blue-400" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Gemini AI 분석 리포트 생성 중...
-              </span>
-            ) : "✨ 우리 그룹 갈등 관리 DNA 분석하기 (AI 리포트)"}
-          </button>
-        ) : (
-          <div className="bg-indigo-50/80 p-8 md:p-12 rounded-[2.5rem] border border-indigo-100 relative overflow-hidden animate-in slide-in-from-bottom-10 duration-700">
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-              <span className="text-9xl font-black">AI</span>
-            </div>
-            <div className="flex items-center gap-3 mb-8">
-              <div className="bg-indigo-600 p-2 rounded-xl shadow-lg">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-              </div>
-              <h3 className="text-2xl font-bold text-indigo-900">전문가 AI 리포트: 조직 갈등 지형도</h3>
-            </div>
-            <div className="prose prose-indigo max-w-none text-indigo-900/90 whitespace-pre-wrap leading-[1.8] text-lg font-medium">
-              {groupAnalysis}
-            </div>
-            <button 
-              onClick={() => setGroupAnalysis(null)}
-              className="mt-10 text-indigo-600 font-bold border-b-2 border-indigo-200 hover:border-indigo-600 transition-all text-sm"
-            >
-              분석 내용 닫기 및 재집계
-            </button>
-          </div>
-        )}
+      
+      <div className="mt-12 p-8 bg-blue-50 rounded-3xl border border-blue-100 text-center">
+        <p className="text-blue-800 font-bold">
+          💡 각 유형별 인원을 집계하여 우리 팀의 갈등 관리 성향을 한눈에 파악해보세요.
+        </p>
       </div>
     </div>
   );
@@ -354,6 +289,7 @@ export default function App() {
   const [step, setStep] = useState<'intro' | 'quiz' | 'result' | 'instructor'>('intro');
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<ConflictStyle[]>([]);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const handleStart = () => {
     setStep('quiz');
@@ -375,6 +311,12 @@ export default function App() {
       setStep('result');
     }
   }, [currentIdx]);
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
 
   const diagnosisResult = useMemo(() => {
     if (step !== 'result') return null;
@@ -437,7 +379,7 @@ export default function App() {
 
       <main className="flex-1 w-full max-w-5xl px-4 py-12">
         {step === 'intro' && (
-          <div className="flex flex-col items-center text-center mt-8 px-4 max-w-2xl mx-auto">
+          <div className="flex flex-col items-center text-center mt-8 px-4 max-w-2xl mx-auto animate-in fade-in">
             <div className="mb-10 p-6 bg-white rounded-[2rem] shadow-2xl shadow-blue-100 relative">
                <div className="absolute -top-6 -right-6 w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white text-3xl">
                   ✨
@@ -460,6 +402,14 @@ export default function App() {
               >
                 진단 시작하기
               </button>
+              
+              <button 
+                onClick={copyLink}
+                className="w-full bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-200 transition-all"
+              >
+                {copySuccess ? '✅ 주소가 복사되었습니다' : '📋 진단 주소 복사 (강사용)'}
+              </button>
+
               <div className="flex items-center justify-center gap-2 text-slate-400 font-bold text-sm">
                 <span className="w-8 h-px bg-slate-200"></span>
                 <span>30문항 · 약 5분 소요</span>

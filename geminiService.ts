@@ -2,8 +2,24 @@
 import { GoogleGenAI } from "@google/genai";
 import { ConflictStyle } from "./types";
 
+const getApiKey = (): string | undefined => {
+  // Vite는 자동으로 VITE_ 접두사가 있는 환경 변수를 import.meta.env에 주입
+  const viteKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (viteKey) return viteKey;
+  
+  // fallback: vite.config.ts의 define으로 주입된 process.env 사용
+  const processKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  return processKey as string | undefined;
+};
+
 export const getDeeperAnalysis = async (scores: Record<ConflictStyle, number>) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.error("Gemini API key is not set. Please set VITE_GEMINI_API_KEY environment variable.");
+    return "API 키가 설정되지 않았습니다. 환경 변수 VITE_GEMINI_API_KEY를 설정해주세요.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   const scoreText = Object.entries(scores)
     .map(([style, score]) => `${style}: ${score}점`)
     .join(", ");
@@ -28,12 +44,18 @@ export const getDeeperAnalysis = async (scores: Record<ConflictStyle, number>) =
     return response.text;
   } catch (error) {
     console.error("Gemini analysis error:", error);
-    return null;
+    return `오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`;
   }
 };
 
 export const getGroupCultureAnalysis = async (groupData: Record<ConflictStyle, number>) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.error("Gemini API key is not set. Please set VITE_GEMINI_API_KEY environment variable.");
+    return "API 키가 설정되지 않았습니다. 환경 변수 VITE_GEMINI_API_KEY를 설정해주세요.";
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   const distributionText = Object.entries(groupData)
     .map(([style, count]) => `${style}: ${count}명`)
     .join(", ");
@@ -58,6 +80,6 @@ export const getGroupCultureAnalysis = async (groupData: Record<ConflictStyle, n
     return response.text;
   } catch (error) {
     console.error("Gemini group analysis error:", error);
-    return null;
+    return `오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`;
   }
 };
